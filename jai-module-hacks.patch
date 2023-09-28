@@ -1,5 +1,5 @@
 diff --git a/modules/Basic/Print.jai b/modules/Basic/Print.jai
-index fb288f8..6552465 100644
+index 3bf124d..4b90cae 100644
 --- a/modules/Basic/Print.jai
 +++ b/modules/Basic/Print.jai
 @@ -1,6 +1,6 @@
@@ -11,7 +11,7 @@ index fb288f8..6552465 100644
  
  #scope_export
 diff --git a/modules/Default_Allocator/module.jai b/modules/Default_Allocator/module.jai
-index 27e4e26..0fc4340 100644
+index 0a0490f..0e9b6b0 100644
 --- a/modules/Default_Allocator/module.jai
 +++ b/modules/Default_Allocator/module.jai
 @@ -3,6 +3,8 @@
@@ -138,7 +138,7 @@ index 27e4e26..0fc4340 100644
  }
  
  atomic_inc :: inline (dest: *s32) -> s32 {
-@@ -238,32 +259,44 @@ atomic_dec :: inline (dest: *s32) -> s32 {
+@@ -238,34 +259,46 @@ atomic_dec :: inline (dest: *s32) -> s32 {
  
  atomic_add :: inline (dest: *s32, value: s32) -> s32 {
      increment := value;
@@ -164,12 +164,14 @@ index 27e4e26..0fc4340 100644
 -    #asm {
 -        old === a;
 -        lock_cmpxchg.d old, [dest], new;
--        setz result;
+-        setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
+-        mov result, t;
 +    #if CPU == .X64 {
 +        #asm {
 +            old === a;
 +            lock_cmpxchg.d old, [dest], new;
-+            setz result;
++            setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
++            mov result, t;
 +        }
      }
 +    // @TODO: Fill this in...!!
@@ -181,19 +183,21 @@ index 27e4e26..0fc4340 100644
 -    #asm {
 -        old === a;
 -        lock_cmpxchg.q old, [dest], new;
--        setz result;
+-        setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
+-        mov result, t;
 +    #if CPU == .X64 {
 +        #asm {
 +            old === a;
 +            lock_cmpxchg.q old, [dest], new;
-+            setz result;
++            setz t:; // The extra temporary/move here is to work around a bug in the compiler @AsmRWTracking
++            mov result, t;
 +        }
      }
 +    // @TODO: Fill this in...!!
      return result;
  }
  
-@@ -656,7 +689,10 @@ span_double_link_list_remove :: (head: **Span, span: *Span) {
+@@ -658,7 +691,10 @@ span_double_link_list_remove :: (head: **Span, span: *Span) {
  ///
  
  spin :: inline () {
@@ -205,7 +209,7 @@ index 27e4e26..0fc4340 100644
  }
  
  
-@@ -1998,3 +2034,45 @@ heap_statistics :: (heap: *Heap) -> Heap_Statistics {
+@@ -2000,3 +2036,45 @@ heap_statistics :: (heap: *Heap) -> Heap_Statistics {
  #if OS == .PS5 {
      #load "ps5.jai";
  }
@@ -253,10 +257,10 @@ index 27e4e26..0fc4340 100644
 +}
 \ No newline at end of file
 diff --git a/modules/Preload.jai b/modules/Preload.jai
-index a86cf40..792b687 100644
+index 23508c9..eab0da6 100644
 --- a/modules/Preload.jai
 +++ b/modules/Preload.jai
-@@ -459,9 +459,11 @@ debug_break :: () #expand #no_context #no_debug {
+@@ -460,9 +460,11 @@ debug_break :: () #expand #no_context #no_debug {
          // Break into the debugger, or stop the running process.
          #if OS == .PS5 {
              #asm { int 0x41; }
@@ -270,7 +274,7 @@ index a86cf40..792b687 100644
      }
  }
  
-@@ -530,27 +532,32 @@ one_time_init :: (synch_value: *s32, to_insert: Code) #expand {
+@@ -531,27 +533,32 @@ one_time_init :: (synch_value: *s32, to_insert: Code) #expand {
          // The goal here is just to avoid the overhead of spamming the compare_and_swap.
          if (<< synch_value) == 2  break;
  
@@ -358,10 +362,10 @@ index 5e43090..c45157e 100644
      #if OS == .NONE {
          // Let the user fill this in, if desired.
 diff --git a/modules/String/module.jai b/modules/String/module.jai
-index 1b5b037..2547e56 100644
+index 974705a..df028e6 100644
 --- a/modules/String/module.jai
 +++ b/modules/String/module.jai
-@@ -1525,7 +1525,7 @@ is_any :: (c: u8, chars:string) -> bool {
+@@ -1524,7 +1524,7 @@ is_any :: (c: u8, chars:string) -> bool {
  
  #scope_module
  
@@ -370,141 +374,7 @@ index 1b5b037..2547e56 100644
  SIMD_WIDTH :: 16;
  
  Basic :: #import "Basic";
-diff --git a/modules/stb_sprintf/build.jai b/modules/stb_sprintf/build.jai
-index 68e6eff..9aff596 100644
---- a/modules/stb_sprintf/build.jai
-+++ b/modules/stb_sprintf/build.jai
-@@ -1,17 +1,26 @@
- PS5_SUPPORT :: false;
- 
- #run {
-+    #import "String";
-+
-     set_build_options_dc(.{do_output = false});
- 
-     src := "source/stb_sprintf.cpp";
- 
-     target := OS;
-+    arch   := CPU;
- 
-     args := get_build_options().compile_time_command_line;
-     if array_find(args, "ps5") {
-         target = .PS5;
-     } else if array_find(args, "switch") {
-         target = .NN_SWITCH;
-+    } else if array_find(args, "linux") {
-+        target = .LINUX;
-+    }
-+
-+    if array_find(args, "arm64") {
-+        arch = .ARM64;
-     }
- 
-     extra: [] string;
-@@ -31,17 +40,59 @@ PS5_SUPPORT :: false;
-         case;            assert(false);
-     }
- 
-+    if arch != .X64 {
-+        dest_path = tprint("%-%", dest_path, arch);
-+        to_lower_in_place(dest_path);
-+    }
-+
-     success := make_directory_if_it_does_not_exist(dest_path);
-     assert(success);
- 
--    output_name := tprint("%/stb_sprintf", dest_path);
--    if target != .PS5 && target != .NN_SWITCH {
--        log("Building dynamic library for %:", target);
--        build_cpp_dynamic_lib(output_name, src, extra=extra, target=target);
-+    // Thanks to ctp for this hack!
-+    if arch == .ARM64 {
-+        #import "Process";
-+        {
-+            arguments := string.[
-+                "clang++",
-+                "-DSTB_SPRINTF_IMPLEMENTATION",
-+                "--target=aarch64-unknown-linux-gnu",
-+                "--sysroot=/usr/aarch64-linux-gnu",
-+                "-c", "source/stb_sprintf.cpp",
-+                "-o", "stb_sprintf.o",
-+            ];
-+            log("%", arguments);
-+            result, output_string, error_string := run_command(..arguments, capture_and_return_output = true, print_captured_output = true);
-+            if result.exit_code != 0 {
-+                log("Compiler failed with output:\n%\n%", output_string, error_string);
-+                return;
-+            }
-+        }
-+        {
-+            arguments := string.[
-+                "aarch64-linux-gnu-ar",
-+                "-rcs",
-+                "linux-arm64/stb_sprintf.a",
-+                "stb_sprintf.o",
-+            ];
-+            log("%", arguments);
-+            result, output_string, error_string := run_command(..arguments, capture_and_return_output = true, print_captured_output = true);
-+            if result.exit_code != 0 {
-+                log("Archiver failed with output:\n%\n%", output_string, error_string);
-+                return;
-+            }
-+        }
-+        file_delete("stb_sprintf.o");
-     }
-+    else {
-+        output_name := tprint("%/stb_sprintf", dest_path);
-+        if target != .PS5 && target != .NN_SWITCH && target != .IOS {
-+            log("Building dynamic library for %:", target);
-+            build_cpp_dynamic_lib(output_name, src, extra=extra, target=target);
-+        }
- 
--    log("Building static library for %:", target);
--    build_cpp_static_lib(output_name, src, extra=extra, target=target);
-+        log("Building static library for %:", target);
-+        build_cpp_static_lib(output_name, src, extra=extra, target=target);
-+    }
- }
- 
- #import "Basic";
 diff --git a/modules/stb_sprintf/linux-arm64/stb_sprintf.a b/modules/stb_sprintf/linux-arm64/stb_sprintf.a
 new file mode 100644
 index 0000000..156defc
 Binary files /dev/null and b/modules/stb_sprintf/linux-arm64/stb_sprintf.a differ
-diff --git a/modules/stb_sprintf/module.jai b/modules/stb_sprintf/module.jai
-index d334998..a1c6d71 100644
---- a/modules/stb_sprintf/module.jai
-+++ b/modules/stb_sprintf/module.jai
-@@ -11,14 +11,21 @@ stbsp_set_separators :: (comma: u8, period: u8) #foreign libstb_sprintf;
- 
- #scope_file
- 
--#if OS == .WINDOWS {
--    libstb_sprintf :: #library "win/stb_sprintf";
--} else #if OS == .LINUX {
--    libstb_sprintf :: #library "linux/stb_sprintf";
--} else #if OS == .MACOS {
--    libstb_sprintf :: #library "mac/stb_sprintf";
--} else #if OS == .NN_SWITCH {
--    libstb_sprintf :: #library "switch/stb_sprintf";
--} else #if OS == .PS5 {
--    libstb_sprintf :: #library "ps5/stb_sprintf";
-+#if CPU == .X64 {
-+    #if OS == .WINDOWS {
-+        libstb_sprintf :: #library "win/stb_sprintf";
-+    } else #if OS == .LINUX {
-+        libstb_sprintf :: #library "linux/stb_sprintf";
-+    } else #if OS == .MACOS {
-+        libstb_sprintf :: #library "mac/stb_sprintf";
-+    } else #if OS == .NN_SWITCH {
-+        libstb_sprintf :: #library "switch/stb_sprintf";
-+    } else #if OS == .PS5 {
-+        libstb_sprintf :: #library "ps5/stb_sprintf";
-+    }
- }
-+else #if CPU == .ARM64 {
-+    #if OS == .LINUX {
-+        libstb_sprintf :: #library,no_dll "linux-arm64/stb_sprintf";
-+    } else #assert false "No stb_sprintf support for this OS yet!";
-+} else #assert false "No stb_sprintf support for this architecture yet!";
-\ No newline at end of file
