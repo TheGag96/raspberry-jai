@@ -9,11 +9,6 @@
 PROJECT_NAME    :: "jai-pi";
 OPTIMIZED_BUILD :: false;
 
-// @Note: I was having trouble building a cross compiling GCC for the Pi with the correct GlibC version, so without
-// having that, the easiest way to make a full executable is just to compile the Jai side on the host and link on the
-// target. If you have a working cross-compiler, this should do the trick if you fill out the constants below.
-LINK_EXECUTABLE_ON_THIS_MACHINE :: false;
-
 GCC_PATH :: "aarch64-linux-gnu-gcc"; // @TODO: find this path automatically
 AR_PATH  :: "aarch64-linux-gnu-ar";  // @TODO: find this path automatically
 
@@ -27,13 +22,13 @@ build :: () {
   target_options := get_build_options(w);
 
   target_options.backend                             = .LLVM;
-  target_options.output_type                         = ifx LINK_EXECUTABLE_ON_THIS_MACHINE then .EXECUTABLE else .OBJECT_FILE;
+  target_options.output_type                         = .EXECUTABLE;
   target_options.backtrace_on_crash                  = .OFF;   // @TODO: Can we enable this?
   target_options.output_executable_name              = PROJECT_NAME;
   target_options.os_target                           = .LINUX;
   target_options.cpu_target                          = .ARM64;
   target_options.llvm_options.target_system_triple   = "aarch64-unknown-linux-gnu";
-  target_options.use_custom_link_command             = LINK_EXECUTABLE_ON_THIS_MACHINE;
+  target_options.use_custom_link_command             = true;
   target_options.llvm_options.output_bitcode         = true;
   target_options.llvm_options.enable_split_modules   = false;
 
@@ -59,7 +54,7 @@ build :: () {
   compiler_begin_intercept(w);
 
   add_build_file("src/main.jai", w);
-  if LINK_EXECUTABLE_ON_THIS_MACHINE  custom_link(w);
+  custom_link(w);
   // hacky_inline_asm_removal(w);
 
   compiler_end_intercept(w);
