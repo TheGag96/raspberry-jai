@@ -1,8 +1,8 @@
 diff --git a/modules/Atomics.jai b/modules/Atomics.jai
-index d1db0bc..2a619cf 100644
+index 8efeffa..fccdf04 100644
 --- a/modules/Atomics.jai
 +++ b/modules/Atomics.jai
-@@ -90,13 +90,26 @@ compare_and_swap2 :: (dest: *void, old_value_1: $T1_64, old_value_2: $T2_64, new
+@@ -36,13 +36,26 @@ compare_and_swap2 :: (dest: *void, old_value_1: $T1_64, old_value_2: $T2_64, new
      actual_old_2 := old_value_2;
  
      success: bool = ---;
@@ -37,7 +37,7 @@ index d1db0bc..2a619cf 100644
  
      return success;
 diff --git a/modules/Bindings_Generator/module.jai b/modules/Bindings_Generator/module.jai
-index 39c0f13..af95c42 100644
+index 0080275..24bed4a 100644
 --- a/modules/Bindings_Generator/module.jai
 +++ b/modules/Bindings_Generator/module.jai
 @@ -145,6 +145,7 @@ RESERVED_NAMES :: string.[
@@ -2852,7 +2852,7 @@ index 0000000..547f1f3
 +librt :: #library,system "librt";
 diff --git a/modules/POSIX/bindings/linux/arm64/pthread.jai b/modules/POSIX/bindings/linux/arm64/pthread.jai
 new file mode 100644
-index 0000000..735cd82
+index 0000000..c96a606
 --- /dev/null
 +++ b/modules/POSIX/bindings/linux/arm64/pthread.jai
 @@ -0,0 +1,902 @@
@@ -3756,7 +3756,7 @@ index 0000000..735cd82
 +
 +#scope_file
 +
-+libpthread :: #library "/home/ggrat/Apps/cross-pi-gcc-14.2.0-64/aarch64-linux-gnu/libc/lib64/libpthread";
++libpthread :: #library,system "libpthread";
 +libc :: #library,system "libc";
 diff --git a/modules/POSIX/bindings/linux/arm64/resource.jai b/modules/POSIX/bindings/linux/arm64/resource.jai
 new file mode 100644
@@ -6119,7 +6119,7 @@ index 0000000..8a2bdf8
 +
 +libc :: #library,system "libc";
 diff --git a/modules/POSIX/generate.jai b/modules/POSIX/generate.jai
-index bc542d6..75bdce3 100644
+index bc542d6..6c9fbad 100644
 --- a/modules/POSIX/generate.jai
 +++ b/modules/POSIX/generate.jai
 @@ -24,6 +24,7 @@ ENABLE_GNU_SOURCE :: true; // Enable this and re-run the generator to get Linux
@@ -6299,14 +6299,16 @@ index bc542d6..75bdce3 100644
  
      array_add(*options.source_files,
          tprint("%/unistd.h", libc_path), // for syscall()
-@@ -750,9 +809,16 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+@@ -749,10 +808,17 @@ generate_pthread_bindings :: (os: Operating_System_Tag, cpu: CPU_Tag, bindings_d
+     options := get_common_options(os, cpu);
  
      if os == .LINUX {
-         array_insert_at(*options.libnames, "libpthread.so.0", 0);
+-        array_insert_at(*options.libnames, "libpthread.so.0", 0);
++        array_insert_at(*options.system_library_names, "libpthread.so.0", 0);
 +
 +        if cpu == .ARM64 {
 +            array_add(
-+                *options.libpaths,
++                *options.system_library_paths,
 +                tprint("%/aarch64-linux-gnu/libc/lib64", cross_compiler_sysroot),
 +            );
 +        }
@@ -6420,7 +6422,7 @@ index 805a173..83770ee 100644
      case .MACOS;
          SYSCALL_MACH_BASE :: 0x1000000;
 diff --git a/modules/Simp/backend/gl.jai b/modules/Simp/backend/gl.jai
-index 24a39e3..522d81b 100644
+index 993434e..7dc69df 100644
 --- a/modules/Simp/backend/gl.jai
 +++ b/modules/Simp/backend/gl.jai
 @@ -203,9 +203,9 @@ OUT_IN vec2 TextureCoords;
@@ -8891,10 +8893,10 @@ index b5766ca..1eb3afb 100644
      #load "generated_android.jai";
  } else #if OS == .MACOS {
 diff --git a/modules/String/module.jai b/modules/String/module.jai
-index 1785985..b464833 100644
+index 0ba95c6..7ba51e3 100644
 --- a/modules/String/module.jai
 +++ b/modules/String/module.jai
-@@ -1590,7 +1590,7 @@ is_any :: (c: u8, chars:string) -> bool {
+@@ -1559,7 +1559,7 @@ is_any :: (c: u8, chars:string) -> bool {
  
  #scope_module
  
