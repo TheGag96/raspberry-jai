@@ -6,8 +6,12 @@
 #import "Sort";
 #import "String";
 
-PROJECT_NAME    :: "jai-pi";
-OPTIMIZED_BUILD :: false;
+PROJECT_NAME     :: "jai-pi";
+BUILD_FOR_TARGET :: true;
+
+// @Note: If you don't have a full Raspbian sysroot available to link against some system libraries, you may find it
+//        easier to just have the compiler output an objet file and link the executable on the target machine.
+LINK_TARGET_EXECUTABLE_ON_THIS_MACHINE :: true;
 
 GCC_PATH :: "aarch64-linux-gnu-gcc"; // @TODO: find this path automatically
 AR_PATH  :: "aarch64-linux-gnu-ar";  // @TODO: find this path automatically
@@ -19,28 +23,43 @@ build :: () {
     return;
   }
 
-  target_options := get_build_options(w);
+  target_options := get_build_options();  // Inherit normal command line options.
 
-  target_options.backend                             = .LLVM;
-  target_options.output_type                         = .EXECUTABLE;
-  target_options.backtrace_on_crash                  = .OFF;   // @TODO: Can we enable this?
-  target_options.output_executable_name              = PROJECT_NAME;
-  target_options.os_target                           = .LINUX;
-  target_options.cpu_target                          = .ARM64;
-  target_options.llvm_options.target_system_triple   = "aarch64-unknown-linux-gnu";
-  target_options.use_custom_link_command             = true;
-  target_options.llvm_options.output_bitcode         = true;
-  target_options.llvm_options.enable_split_modules   = false;
+  build_for_target := BUILD_FOR_TARGET;
 
-  #if OPTIMIZED_BUILD {
-    set_optimization(*target_options, .OPTIMIZED);
-    target_options.llvm_options.code_gen_optimization_level = 3;
-    target_options.llvm_options.enable_tail_calls           = true;
-    target_options.llvm_options.enable_loop_unrolling       = true;
-    target_options.llvm_options.enable_slp_vectorization    = true;
-    target_options.llvm_options.enable_loop_vectorization   = true;
-    target_options.llvm_options.disable_inlining            = false;
+  for target_options.compile_time_command_line {
+    if it == "-target" {
+      build_for_target = true;
+      break;
+    }
+    else if it == "-host" {
+      build_for_target = false;
+      break;
+    }
   }
+
+  link_target_executable_on_this_machine := build_for_target && LINK_TARGET_EXECUTABLE_ON_THIS_MACHINE;
+
+  target_options.output_executable_name                = PROJECT_NAME;
+
+  if build_for_target {
+    target_options.backend                             = .LLVM;
+    target_options.output_type                         = ifx link_target_executable_on_this_machine then .EXECUTABLE else .OBJECT_FILE;
+    target_options.runtime_support_definitions         = .ENTRY_POINT_AND_INIT;
+    target_options.backtrace_on_crash                  = .OFF;   // @TODO: Can we enable this?
+    target_options.os_target                           = .LINUX;
+    target_options.cpu_target                          = .ARM64;
+    target_options.llvm_options.target_system_triple   = "aarch64-unknown-linux-gnu";
+    target_options.use_custom_link_command             = link_target_executable_on_this_machine;
+    target_options.llvm_options.output_bitcode         = true;
+    target_options.llvm_options.enable_split_modules   = false;
+  }
+
+  log(
+    "Building for the %. (OS = %, CPU = %)",
+    ifx build_for_target then "target hardware" else "host machine",
+    target_options.os_target, target_options.cpu_target,
+  );
 
   import_paths: [..] string;
   array_add(*import_paths, ..target_options.import_path);
@@ -54,61 +73,10 @@ build :: () {
   compiler_begin_intercept(w);
 
   add_build_file("src/main.jai", w);
-  custom_link(w);
+  if link_target_executable_on_this_machine  custom_link(w);
   // hacky_inline_asm_removal(w);
 
   compiler_end_intercept(w);
-}
-
-// Thanks to tsoding! https://github.com/tsoding/jai-wasm/blob/master/first.jai#L31-L77
-// @TODO: Remove when done filling in #asm holes
-hacky_inline_asm_removal :: (w: Workspace) -> [] string {
-  resulting_object_files: [] string;
-
-  while true {
-    message := compiler_wait_for_message();
-
-    if message.kind == {
-      case .TYPECHECKED; {
-        typechecked := cast(*Message_Typechecked) message;
-
-        for typechecked.procedure_bodies {
-          contains_asm := false;
-
-          for it.subexpressions {
-            if it.kind == .ASM {
-              compiler_report("ASM DETECTED!!!", make_location(it), .WARNING);
-              contains_asm = true;
-            }
-          }
-
-          if contains_asm {
-            body := it.expression;
-
-            compiler_report(tprint("Removing whole body of the function % DON'T USE IT!!!", body.header.name), make_location(body), .WARNING);
-
-            new_statements : [..] *Code_Node;
-            body.block.statements = new_statements;
-            compiler_modify_procedure(w, body);
-          }
-        }
-      }
-
-      case .PHASE; {
-        phase := cast(*Message_Phase) message;
-
-        if phase.phase == .POST_WRITE_EXECUTABLE {
-          resulting_object_files = phase.compiler_generated_object_files;
-        }
-      }
-
-      case .COMPLETE; {
-        break;
-      }
-    }
-  }
-
-  return resulting_object_files;
 }
 
 custom_link :: (w: Workspace) {
