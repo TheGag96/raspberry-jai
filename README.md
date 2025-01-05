@@ -17,8 +17,19 @@ Next, go grab a cross-compiling GCC for the Raspberry Pi and add it to your `PAT
 It should be as simple as:
 
 ```sh
-jai first.jai
+jai-linux first.jai
 ```
+
+You can add specify whether to built for the host or target machine with `-host` and `-target` respectively:
+
+```sh
+jai-linux first.jai - -host
+jai-linux first.jai - -target
+```
+
+## Running
+
+
 
 ## Thanks to...
 
