@@ -9,6 +9,12 @@ image_test: Simp.Texture;
 screenshot_index := 0;
 
 main :: () {
+  #if OS == .LINUX && CPU == .ARM64 {
+    // @HACK: The Raspberry Pi 3B's GPU only supports up to OpenGL ES 2.0. The features of ES 3.0+ that Simp uses can
+    //        be emulated by Mesa if we force it to pretend that we can support desktop GL 3.3.
+    setenv("MESA_GL_VERSION_OVERRIDE", "3.3", 0);
+  }
+
   #if OS == .WINDOWS {
     Windows :: #import "Windows";
     Windows.SetProcessDPIAware();
@@ -220,6 +226,10 @@ Input :: #import "Input";
 #import "Math";
 #import "System";  // For get_path_of_running_executable. @Cleanup.
 #import "String";  // For path_strip_filename. @Cleanup.
+
+#if OS == .LINUX {
+  #import "POSIX";
+}
 
 #run {
   #if OS == .WINDOWS {
