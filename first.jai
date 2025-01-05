@@ -91,14 +91,24 @@ custom_link :: (w: Workspace) {
 
         if phase.phase == .READY_FOR_CUSTOM_LINK_COMMAND {
           args: [..] string;
-          array_add(*args, GCC_PATH, "-o", "jai-pi");
+          array_add(*args, GCC_PATH, "-o", phase.executable_name);
           array_add(*args, ..phase.compiler_generated_object_files);
           // array_add(*args, ..phase.support_object_files);
-          // array_add(*args, ..phase.system_libraries);
+
+          for phase.system_libraries {
+            path, basename, extension, basename_with_extension := path_decomp(it);
+
+            lib_name := basename;
+            if starts_with(lib_name, "lib") {
+              advance(*lib_name, "lib".count);
+            }
+
+            array_add(*args, tprint("-l%0%", ifx extension == "a" then ":" else "", lib_name));
+          }
+
           array_add(*args, ..phase.user_libraries);
 
-          // print("Link command: %\n", args);
-
+          // log("Link command: %", args);
           run_command(..args);
           compiler_custom_link_command_is_complete(w);
         }
