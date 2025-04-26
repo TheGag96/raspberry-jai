@@ -72,7 +72,7 @@ build :: () {
 
   compiler_begin_intercept(w);
 
-  add_build_file("src/main.jai", w);
+  add_build_file("src/main2.jai", w);
   if link_target_executable_on_this_machine  custom_link(w);
   // hacky_inline_asm_removal(w);
 
